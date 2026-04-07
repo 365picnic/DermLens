@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>빼빼한의원 AI 피부 치료 분석</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&family=Dancing+Script:wght@600&display=swap');
+        body { font-family: 'Noto Sans KR', sans-serif; background-color: #f8faf7; overflow-x: hidden; }
+        :root { --brand-green: #29b473; --brand-dark: #333132; --brand-light: #effaf4; }
+        .header-logo-area { padding: 40px 0 20px 0; text-align: center; position: relative; }
+        .text-logo { font-weight: 900; font-size: 2.8rem; color: var(--brand-dark); letter-spacing: -0.05em; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        .text-logo span { color: var(--brand-green); }
+        .text-logo-sub { font-size: 0.95rem; font-weight: 500; color: var(--brand-dark); letter-spacing: 0.2em; margin-top: -5px; opacity: 0.7; }
+        .photo-card { background: white; border-radius: 20px; overflow: hidden; box-shadow: 0 8px 25px rgba(0,0,0,0.04); border: 1px solid rgba(41, 180, 115, 0.08); transition: all 0.3s; }
+        .placeholder-guide { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background-color: #f1f5f0; color: #94a3b8; z-index: 5; border: 2px dashed #d1dbd0; margin: 12px; border-radius: 16px; pointer-events: none; }
+        .placeholder-guide svg { width: 42px; height: 42px; margin-bottom: 10px; opacity: 0.5; stroke: var(--brand-green); }
+        .image-container { width: 100%; aspect-ratio: 3/4; overflow: hidden; background: #f1f3f0; position: relative; cursor: grab; display: flex; align-items: center; justify-content: center; touch-action: none; }
+        .compare-img { max-width: 100%; max-height: 100%; object-fit: contain; transform-origin: center; transition: transform 0.1s ease-out; pointer-events: none; user-select: none; z-index: 2; }
+        .grid-overlay { position: absolute; inset: 0; z-index: 3; pointer-events: none; display: none; }
+        .grid-overlay.active { display: block; }
+        .grid-overlay line { stroke: rgba(255,0,0,0.45); stroke-width: 1; }
+        .btn-action { background-color: var(--brand-light); color: var(--brand-green); transition: all 0.2s; }
+        .btn-action:hover { background-color: var(--brand-green); color: white; }
+        .memo-area { background: #fff; border-radius: 20px; border: 1px solid rgba(41, 180, 115, 0.15); padding: 1.5rem; margin-top: 1.5rem; box-shadow: 0 4px 20px rgba(0,0,0,0.02); }
+        .memo-input { width: 100%; border: none; resize: none; outline: none; font-size: 0.95rem; line-height: 1.8; color: #4a5568; min-height: 320px; overflow: hidden; }
+        .btn-ai-analyze { background: linear-gradient(135deg, #29b473, #22c55e); color: white; padding: 10px 22px; border-radius: 14px; font-weight: 700; display: flex; align-items: center; gap: 8px; transition: all 0.3s; box-shadow: 0 4px 12px rgba(41, 180, 115, 0.25); }
+        .btn-ai-analyze:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(41, 180, 115, 0.35); }
+        .btn-ai-analyze:disabled { opacity: 0.6; cursor: not-allowed; filter: grayscale(0.5); }
+        .ai-loading-dots::after { content: '.'; animation: dots 1.5s steps(5, end) infinite; }
+        @keyframes dots { 0%, 20% { content: '.'; } 40% { content: '..'; } 60% { content: '...'; } 80%, 100% { content: ''; } }
+        .history-item { flex-shrink: 0; width: 110px; background: white; padding: 6px; border-radius: 12px; border: 1px solid #edf2ed; cursor: pointer; transition: all 0.2s; }
+        .history-item:hover { border-color: var(--brand-green); transform: translateY(-3px); }
+        .history-item:active { transform: translateY(-1px); }
+        #history-container::-webkit-scrollbar { height: 5px; }
+        #history-container::-webkit-scrollbar-thumb { background: #d1dbd0; border-radius: 10px; }
+        #settings-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 9999; align-items: center; justify-content: center; backdrop-filter: blur(8px); }
+        .settings-content { background: white; padding: 2.5rem; border-radius: 32px; width: 90%; max-width: 500px; box-shadow: 0 30px 60px rgba(0,0,0,0.2); animation: modalFadeIn 0.3s ease-out; }
+        @keyframes modalFadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .settings-btn { position: absolute; top: 25px; right: 25px; background: white; border: 1px solid #e2e8f0; padding: 10px; border-radius: 15px; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 6px rgba(0,0,0,0.05); display: flex; align-items: center; gap: 6px; z-index: 50; }
+        .settings-btn:hover { background: #f8fafc; border-color: var(--brand-green); }
+        .settings-btn span { font-size: 11px; font-weight: bold; color: #64748b; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center pb-20">
+
+    <button class="settings-btn" onclick="toggleSettings(true)" title="AI 설정">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#29b473" stroke-width="2"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <span>AI 설정</span>
+    </button>
+
+    <div id="settings-modal" onclick="if(event.target==this) toggleSettings(false)">
+        <div class="settings-content" onclick="event.stopPropagation()">
+            <h2 class="text-2xl font-black mb-2 text-slate-800">독립 실행용 AI 설정</h2>
+            <p class="text-sm text-slate-500 mb-8 leading-relaxed font-medium">독립된 창에서 AI 분석을 사용하려면 Google AI Studio의 API Key가 필요합니다.</p>
+            <div class="space-y-6">
+                <div>
+                    <label class="text-[11px] font-bold text-slate-400 uppercase mb-2 block tracking-widest">Your Google Gemini API Key</label>
+                    <input type="password" id="custom-api-key" placeholder="여기에 키를 입력하세요" class="w-full px-5 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none focus:border-green-500 text-sm transition-all shadow-inner">
+                </div>
+                <div class="bg-blue-50 p-4 rounded-2xl">
+                    <p class="text-[11px] text-blue-600 leading-relaxed"><strong>참고:</strong> API 키는 이 브라우저에 안전하게 저장되며, 다시 입력하실 필요가 없습니다. 키가 없으신 경우 <a href="https://aistudio.google.com/" target="_blank" class="underline font-bold">Google AI Studio</a>에서 무료로 발급 가능합니다.</p>
+                </div>
+                <div class="flex gap-3 pt-4">
+                    <button onclick="saveCustomKey()" class="flex-1 bg-[#29b473] text-white py-4 rounded-2xl font-black text-sm shadow-lg shadow-green-100 active:scale-95 transition-all">설정 저장</button>
+                    <button onclick="toggleSettings(false)" class="px-8 py-4 bg-slate-100 text-slate-600 rounded-2xl font-bold text-sm hover:bg-slate-200 transition-all">닫기</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="header-logo-area w-full">
+        <div class="text-logo">빼빼<span>한의원</span></div>
+        <div class="text-logo-sub">다이어트 스킨 클리닉</div>
+        <div class="mt-2 text-[10px] font-bold text-slate-400 uppercase tracking-[0.3em] opacity-60">Professional Skin Analysis System</div>
+    </div>
+
+    <div class="max-w-4xl w-full px-4 grid grid-cols-1 md:grid-cols-[1fr_auto_auto_auto] gap-3 mb-4 items-center">
+        <div class="relative">
+            <input type="text" id="patient-name" placeholder="환자 성함" class="w-full pl-5 pr-4 py-3 bg-white border border-slate-200 rounded-2xl outline-none focus:border-[#29b473] transition-all font-medium text-slate-700 shadow-sm text-sm">
+        </div>
+        <div class="flex bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+            <button onclick="setGender('여')" id="gender-f" class="px-4 py-3 text-xs font-bold transition-all bg-pink-50 text-pink-600 border-r border-slate-100">여</button>
+            <button onclick="setGender('남')" id="gender-m" class="px-4 py-3 text-xs font-bold transition-all text-slate-400">남</button>
+        </div>
+        <div class="relative">
+            <input type="number" id="patient-age" placeholder="나이" min="1" max="120" class="w-20 pl-4 pr-2 py-3 bg-white border border-slate-200 rounded-2xl outline-none focus:border-[#29b473] transition-all font-medium text-slate-700 shadow-sm text-sm text-center">
+        </div>
+        <div class="flex bg-white border border-slate-200 rounded-2xl shadow-sm p-1 gap-0.5">
+            <button onclick="changeLayout(2)" id="layout-2" class="px-3 py-2 rounded-lg text-[11px] font-bold transition-all">2컷</button>
+            <button onclick="changeLayout(3)" id="layout-3" class="px-3 py-2 rounded-lg text-[11px] font-bold transition-all">3컷</button>
+            <button onclick="changeLayout(4)" id="layout-4" class="px-3 py-2 rounded-lg text-[11px] font-bold transition-all">4컷</button>
+        </div>
+    </div>
+    <div class="max-w-4xl w-full px-4 mb-6">
+        <div class="relative">
+            <div class="absolute left-5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-[#29b473] uppercase tracking-wider">Focus</div>
+            <input type="text" id="focus-areas" placeholder="비교 포인트 입력 (예: 팔자주름, 턱선, 홍조, 모공)" class="w-full pl-[60px] pr-4 py-4 bg-white border border-[#29b473]/30 rounded-2xl outline-none focus:border-[#29b473] transition-all font-medium text-slate-700 shadow-sm text-sm">
+        </div>
+    </div>
+
+    <div id="capture-area" class="max-w-7xl w-full flex flex-col items-center">
+        <div id="comparison-grid" class="w-full grid grid-cols-1 md:grid-cols-2 gap-6 p-4"></div>
+        <div class="w-full px-4 mb-8">
+            <div class="memo-area">
+                <div class="flex justify-between items-center mb-4 border-b pb-3 border-slate-100">
+                    <div class="flex items-center gap-2">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#29b473" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                        <span class="text-sm font-bold text-slate-700">치료 정밀 분석 리포트</span>
+                    </div>
+                    <button id="ai-analyze-btn" onclick="analyzeSkinWithAI()" class="btn-ai-analyze text-xs">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+                        <span id="ai-btn-text">AI 정밀 분석 실행</span>
+                    </button>
+                </div>
+                <textarea id="treatment-memo" class="memo-input" style="display:none;" placeholder="분석 버튼을 누르면 AI가 변화를 읽어줍니다. 직접 기록도 가능합니다."></textarea>
+                <div id="memo-formatted" class="memo-input" style="cursor:text;white-space:pre-wrap;word-wrap:break-word;color:#4a5568;" onclick="switchToEdit()">
+                    <span style="color:#94a3b8;">분석 버튼을 누르면 AI가 변화를 읽어줍니다. 직접 기록도 가능합니다.</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="max-w-6xl w-full flex flex-wrap justify-between items-center gap-6 bg-white p-6 rounded-3xl shadow-sm border border-green-50 mb-10 mx-4">
+        <div class="flex items-center gap-6">
+            <div class="flex items-center gap-3">
+                <span class="text-sm font-bold text-slate-700">전체 동기화 모드</span>
+                <input type="checkbox" id="sync-toggle" checked class="w-10 h-5 bg-gray-200 rounded-full appearance-none checked:bg-[#29b473] transition-all relative cursor-pointer before:content-[''] before:absolute before:w-4 before:h-4 before:bg-white before:rounded-full before:top-0.5 before:left-0.5 checked:before:left-5 before:transition-all shadow-inner">
+            </div>
+            <div class="h-4 w-[1px] bg-slate-200"></div>
+            <div class="flex items-center gap-3">
+                <span class="text-sm font-bold text-slate-700">비교 격자</span>
+                <input type="checkbox" id="grid-toggle" checked class="w-10 h-5 bg-gray-200 rounded-full appearance-none checked:bg-[#dc2626] transition-all relative cursor-pointer before:content-[''] before:absolute before:w-4 before:h-4 before:bg-white before:rounded-full before:top-0.5 before:left-0.5 checked:before:left-5 before:transition-all shadow-inner">
+            </div>
+            <div class="h-4 w-[1px] bg-slate-200"></div>
+            <button onclick="resetFolderSession()" class="text-[10px] text-slate-400">폴더 초기화</button>
+            <span id="folder-status" class="text-[10px] text-slate-400 cursor-pointer" onclick="requestFolderPermission()">저장 폴더 연결</span>
+        </div>
+        <div class="flex gap-3">
+            <button onclick="printPatientReport()" class="flex items-center py-4 rounded-full font-bold shadow-lg gap-2 bg-white text-[#29b473] border-2 border-[#29b473] px-8 hover:bg-[#effaf4] transition-all">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                환자 리포트 출력
+            </button>
+            <button onclick="saveComparison()" class="flex items-center py-4 rounded-full font-bold shadow-lg gap-2 bg-[#29b473] text-white px-10 hover:bg-[#239d63] transition-all">
+                분석 결과 이미지 저장
+            </button>
+        </div>
+    </div>
+
+    <div class="max-w-6xl w-full px-4 mb-20">
+        <h3 class="text-xs font-bold text-slate-400 mb-4 uppercase tracking-widest">Recent Sessions</h3>
+        <div id="history-container" class="flex gap-4 overflow-x-auto pb-4">
+            <div class="text-[10px] text-slate-300 italic">저장된 기록이 아직 없습니다.</div>
+        </div>
+    </div>
+
+    <script>
+        const apiKey = "";
+
+        const getStoredKey = () => { try { return localStorage.getItem('bb_api_key') || ""; } catch(e) { return ""; } };
+
+        const state = {
+            count: 2,
+            sync: true,   // ★ 시작 시 전체 동기화 모드 ON
+            dragging: null,
+            photos: {},
+            history: [],
+            customKey: getStoredKey(),
+            gridOn: true,
+            gender: '여',
+            directoryHandle: null
+        };
+
+        const DB_NAME = 'ppeppe_db', STORE_NAME = 'config', KEY_NAME = 'directory_handle';
+
+        async function getDB() {
+            return new Promise((resolve, reject) => {
+                const req = indexedDB.open(DB_NAME, 1);
+                req.onupgradeneeded = () => req.result.createObjectStore(STORE_NAME);
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+        }
+        async function saveHandle(handle) { const db = await getDB(); db.transaction(STORE_NAME,'readwrite').objectStore(STORE_NAME).put(handle, KEY_NAME); }
+        async function loadHandle() {
+            const db = await getDB();
+            return new Promise(resolve => {
+                const req = db.transaction(STORE_NAME).objectStore(STORE_NAME).get(KEY_NAME);
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => resolve(null);
+            });
+        }
+        async function verifyPermission(fh, withRequest=true) {
+            if (!fh) return false;
+            const opts = {mode:'readwrite'};
+            if ((await fh.queryPermission(opts)) === 'granted') return true;
+            if (withRequest && (await fh.requestPermission(opts)) === 'granted') return true;
+            return false;
+        }
+        function updateFolderUI(name) {
+            const el = document.getElementById('folder-status');
+            if (!el) return;
+            el.textContent = name ? `📁 ${name}` : '저장 폴더 연결';
+            el.className = name ? 'text-[10px] font-bold text-green-600 bg-green-50 px-3 py-1 rounded-lg border border-green-200 cursor-pointer' : 'text-[10px] text-slate-400 cursor-pointer';
+        }
+
+        const titles = ["치료 전 (BEFORE)", "치료 중 (PROGRESS 1)", "치료 중 (PROGRESS 2)", "치료 후 (AFTER)"];
+
+        window.setGender = function(g) {
+            state.gender = g;
+            const f = document.getElementById('gender-f'), m = document.getElementById('gender-m');
+            if (g==='여') { f.className='px-4 py-3 text-xs font-bold transition-all bg-pink-50 text-pink-600 border-r border-slate-100'; m.className='px-4 py-3 text-xs font-bold transition-all text-slate-400'; }
+            else { m.className='px-4 py-3 text-xs font-bold transition-all bg-blue-50 text-blue-600'; f.className='px-4 py-3 text-xs font-bold transition-all text-slate-400 border-r border-slate-100'; }
+        };
+        window.toggleSettings = function(show) {
+            const modal = document.getElementById('settings-modal');
+            if (!modal) return;
+            modal.style.display = show ? 'flex' : 'none';
+            if (show) { const inp = document.getElementById('custom-api-key'); if(inp) inp.value = state.customKey; }
+        };
+        window.saveCustomKey = function() {
+            const val = document.getElementById('custom-api-key').value.trim();
+            state.customKey = val;
+            try { localStorage.setItem('bb_api_key', val); } catch(e) {}
+            toggleSettings(false);
+        };
+
+        function formatMemoHtml(text) {
+            if (!text) return '';
+            let html = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+            return html.replace(/\*\*(.+?)\*\*/g, '<strong style="color:#dc2626;font-weight:700;background:linear-gradient(transparent 60%,#fef2f2 60%);padding:0 2px;">$1</strong>');
+        }
+        function switchToEdit() {
+            document.getElementById('treatment-memo').style.display = '';
+            document.getElementById('memo-formatted').style.display = 'none';
+            document.getElementById('treatment-memo').focus();
+        }
+        function switchToView() {
+            const memo = document.getElementById('treatment-memo'), fmt = document.getElementById('memo-formatted');
+            fmt.innerHTML = memo.value.trim() ? formatMemoHtml(memo.value) : '<span style="color:#94a3b8;">분석 버튼을 누르면 AI가 변화를 읽어줍니다. 직접 기록도 가능합니다.</span>';
+            memo.style.display = 'none'; fmt.style.display = '';
+            autoResizeMemo();
+        }
+        function autoResizeMemo() {
+            const memo = document.getElementById('treatment-memo');
+            if (!memo) return;
+            memo.style.height = 'auto';
+            memo.style.height = Math.max(320, memo.scrollHeight) + 'px';
+        }
+
+        function changeLayout(num) {
+            state.count = num;
+            const grid = document.getElementById('comparison-grid');
+            grid.className = `w-full grid grid-cols-1 ${num===2?'md:grid-cols-2':num===3?'md:grid-cols-3':'md:grid-cols-2 lg:grid-cols-4'} gap-6 p-4`;
+            [2,3,4].forEach(n => {
+                const btn = document.getElementById(`layout-${n}`);
+                if(btn) btn.className = `px-5 py-2 rounded-lg text-xs font-bold transition-all ${n===num?'bg-white text-[#29b473] shadow-sm':'text-slate-400'}`;
+            });
+            renderSlots();
+        }
+
+        function renderSlots() {
+            const grid = document.getElementById('comparison-grid');
+            grid.innerHTML = '';
+            for (let i = 1; i <= state.count; i++) {
+                const slotId = `slot-${i}`;
+                if (!state.photos[slotId]) state.photos[slotId] = {zoom:1,rotate:0,x:0,y:0,src:'',hasData:false};
+                const p = state.photos[slotId];
+                const card = document.createElement('div');
+                card.className = 'photo-card';
+                card.innerHTML = `
+                    <div class="p-4 flex justify-between items-center bg-white border-b border-slate-50">
+                        <span class="font-black text-[#333132] text-[10px] tracking-tight">${titles[i-1]}</span>
+                        <input type="file" id="up-${i}" class="hidden" accept="image/*" onchange="handleFile(this,${i})">
+                        <button class="text-[9px] btn-action px-3 py-1 rounded-full font-bold" onclick="document.getElementById('up-${i}').click()">불러오기</button>
+                    </div>
+                    <div class="image-container" onmousedown="startDrag(event,${i})" ontouchstart="startDrag(event,${i})">
+                        <div class="placeholder-guide ${p.hasData?'hidden':''}" id="guide-${i}">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="3" ry="3"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/></svg>
+                            <span class="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">PHOTO ${i}</span>
+                        </div>
+                        <img src="${p.src}" id="img-${i}" class="compare-img ${p.hasData?'':'hidden'}">
+                        <svg class="grid-overlay ${state.gridOn?'active':''}" id="grid-${i}" viewBox="0 0 600 800" preserveAspectRatio="none">
+                            <line x1="100" y1="0" x2="100" y2="800"/><line x1="200" y1="0" x2="200" y2="800"/><line x1="300" y1="0" x2="300" y2="800"/><line x1="400" y1="0" x2="400" y2="800"/><line x1="500" y1="0" x2="500" y2="800"/>
+                            <line x1="0" y1="100" x2="600" y2="100"/><line x1="0" y1="200" x2="600" y2="200"/><line x1="0" y1="300" x2="600" y2="300"/><line x1="0" y1="400" x2="600" y2="400"/><line x1="0" y1="500" x2="600" y2="500"/><line x1="0" y1="600" x2="600" y2="600"/><line x1="0" y1="700" x2="600" y2="700"/>
+                        </svg>
+                    </div>
+                    <div class="p-3 flex justify-center items-center gap-2 bg-slate-50/40">
+                        <button onclick="zoom(${i},0.1)" class="p-2 bg-white rounded-lg shadow-sm text-xs hover:bg-slate-50">➕</button>
+                        <span id="zoom-${i}" class="text-[10px] font-bold text-slate-500 min-w-[40px] text-center">${Math.round(p.zoom*100)}%</span>
+                        <button onclick="zoom(${i},-0.1)" class="p-2 bg-white rounded-lg shadow-sm text-xs hover:bg-slate-50">➖</button>
+                        <div class="w-[1px] h-4 bg-slate-200 mx-1"></div>
+                        <button onclick="rotate(${i},-10)" class="p-2 bg-white rounded-lg shadow-sm text-xs hover:bg-slate-50">↺</button>
+                        <span id="rot-${i}" class="text-[10px] font-bold text-slate-500 min-w-[35px] text-center">${p.rotate}°</span>
+                        <button onclick="rotate(${i},10)" class="p-2 bg-white rounded-lg shadow-sm text-xs hover:bg-slate-50">↻</button>
+                        <div class="w-[1px] h-4 bg-slate-200 mx-1"></div>
+                        <button onclick="resetImg(${i})" class="p-2 bg-white rounded-lg shadow-sm text-xs hover:bg-slate-50">🏠</button>
+                    </div>`;
+                grid.appendChild(card);
+                updateStyle(i);
+            }
+        }
+
+        function handleFile(input, i) {
+            const file = input.files[0]; if (!file) return;
+            const r = new FileReader();
+            r.onload = e => { const s = state.photos[`slot-${i}`]; s.src = e.target.result; s.hasData = true; renderSlots(); };
+            r.readAsDataURL(file);
+        }
+        function updateStyle(i) {
+            const s = state.photos[`slot-${i}`];
+            const img = document.getElementById(`img-${i}`);
+            if (img) img.style.transform = `translate(${s.x}px,${s.y}px) scale(${s.zoom}) rotate(${s.rotate}deg)`;
+            const ze = document.getElementById(`zoom-${i}`); if(ze) ze.textContent = Math.round(s.zoom*100)+'%';
+            const re = document.getElementById(`rot-${i}`); if(re) re.textContent = s.rotate+'°';
+        }
+        function zoom(i, delta) {
+            const targets = state.sync ? Array.from({length:state.count},(_,idx)=>idx+1) : [i];
+            targets.forEach(t => { if(state.photos[`slot-${t}`]) { state.photos[`slot-${t}`].zoom = Math.max(0.1, Math.round((state.photos[`slot-${t}`].zoom+delta)*10)/10); updateStyle(t); } });
+        }
+        function rotate(i, deg) { const s=state.photos[`slot-${i}`]; if(s){s.rotate+=deg;updateStyle(i);} }
+        function resetImg(i) { const s=state.photos[`slot-${i}`]; if(s){s.zoom=1;s.x=0;s.y=0;s.rotate=0;updateStyle(i);} }
+
+        let lPos = {x:0,y:0};
+        function startDrag(e, i) {
+            if (!state.photos[`slot-${i}`]?.hasData) return;
+            state.dragging = i;
+            lPos = {x:(e.clientX||e.touches?.[0].clientX), y:(e.clientY||e.touches?.[0].clientY)};
+        }
+        const dragHandler = e => {
+            if (!state.dragging) return;
+            const x=e.clientX||e.touches?.[0].clientX, y=e.clientY||e.touches?.[0].clientY;
+            const dx=x-lPos.x, dy=y-lPos.y;
+            const targets = state.sync ? Array.from({length:state.count},(_,idx)=>idx+1) : [state.dragging];
+            targets.forEach(t => { if(state.photos[`slot-${t}`]){state.photos[`slot-${t}`].x+=dx;state.photos[`slot-${t}`].y+=dy;updateStyle(t);} });
+            lPos={x,y};
+        };
+        window.addEventListener('mousemove', dragHandler);
+        window.addEventListener('touchmove', dragHandler, {passive:false});
+        window.addEventListener('mouseup', ()=>state.dragging=null);
+        window.addEventListener('touchend', ()=>state.dragging=null);
+
+        document.getElementById('sync-toggle').onchange = e => state.sync = e.target.checked;
+        document.getElementById('grid-toggle').onchange = e => {
+            state.gridOn = e.target.checked;
+            for(let i=1;i<=state.count;i++){const g=document.getElementById(`grid-${i}`);if(g)g.classList.toggle('active',state.gridOn);}
+        };
+
+        async function analyzeSkinWithAI() {
+            const before=state.photos['slot-1'], after=state.photos[`slot-${state.count}`];
+            if (!before?.hasData||!after?.hasData){alert("분석을 위해서는 최소 1번(치료 전)과 마지막 단계 사진이 필요합니다.");return;}
+            const finalKey=apiKey||state.customKey;
+            if(!finalKey){alert("독립 창 모드입니다. 우측 상단의 [AI 설정] 버튼을 눌러 본인의 API Key를 입력해 주세요.");toggleSettings(true);return;}
+            const btn=document.getElementById('ai-analyze-btn'), btnText=document.getElementById('ai-btn-text'), memoArea=document.getElementById('treatment-memo');
+            btn.disabled=true; btnText.innerHTML="분석 중<span class='ai-loading-dots'></span>"; memoArea.value="AI가 이미지를 정밀 대조하고 있습니다...";
+            const fetchWithRetry=async(url,options,retries=5,backoff=1000)=>{
+                try{const res=await fetch(url,options);if(!res.ok)throw new Error(`Status ${res.status}: ${await res.text()}`);return await res.json();}
+                catch(err){if(retries<=0)throw err;await new Promise(r=>setTimeout(r,backoff));return fetchWithRetry(url,options,retries-1,backoff*2);}
+            };
+            try {
+                const focusAreas=document.getElementById('focus-areas').value.trim(), gender=state.gender, age=document.getElementById('patient-age').value.trim();
+                const patientInfo=(gender||age)?`\n\n★ 환자 정보: ${gender?gender+'성':''}${age?' '+age+'세':''}`:'';
+                const ageGenderAdvice=(gender||age)?`\n- 환자의 성별(${gender||'미입력'})과 나이(${age||'미입력'})를 고려하여 해당 연령대·성별에 맞는 피부 특성, 노화 패턴, 호르몬 영향, 관리 방법을 반영하세요.`:'';
+                const focusInstruction=focusAreas?`\n\n★ 원장이 지정한 중점 비교 포인트: [${focusAreas}]\n위 포인트들의 개선 여부를 최우선으로 각각 상세히 분석하세요.`:'';
+                const prompt=`당신은 '빼빼한의원'의 전문 피부 분석 AI입니다. 치료 전 사진(첫번째)과 현재 사진(마지막)을 비교 분석하세요.${patientInfo}${focusInstruction}\n\n포함할 내용:\n1. [종합 요약]\n2. [부위별 개선 분석]\n3. [치료 성과 수치]\n4. [관리 가이드]${ageGenderAdvice}\n\n★★ 핵심 어절을 **이중 별표**로 감싸주세요. 차분하고 전문적인 의료진 어조로 한국어로 작성하세요.`;
+                const result=await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${finalKey}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{role:"user",parts:[{text:prompt},{inlineData:{mimeType:"image/png",data:before.src.split(',')[1]}},{inlineData:{mimeType:"image/png",data:after.src.split(',')[1]}}]}]})});
+                const text=result.candidates?.[0]?.content?.parts?.[0]?.text;
+                if(text){memoArea.value=text.trim();switchToView();}else throw new Error("분석 텍스트를 생성하지 못했습니다.");
+            } catch(err){console.error("AI Error:",err);memoArea.value=`[분석 오류]\n원인: ${err.message}\n잠시 후 다시 시도해 주세요.`;}
+            finally{btn.disabled=false;btnText.innerText="AI 정밀 분석 실행";autoResizeMemo();}
+        }
+
+        async function saveComparison() {
+            const area=document.getElementById('capture-area'), memo=document.getElementById('treatment-memo'), fmt=document.getElementById('memo-formatted');
+            const originalScroll=window.scrollY; window.scrollTo(0,0);
+            if(memo.value.trim()) fmt.innerHTML=formatMemoHtml(memo.value);
+            memo.style.display='none'; fmt.style.display='';
+            await new Promise(r=>setTimeout(r,150));
+            try {
+                const canvas=await html2canvas(area,{scale:2,backgroundColor:'#f8faf7',useCORS:true,logging:false,scrollY:0,scrollX:0,windowHeight:area.scrollHeight+200});
+                const dataUrl=canvas.toDataURL('image/png');
+                const name=document.getElementById('patient-name').value||'익명환자';
+                const now=new Date();
+                const dateStr=`${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
+                const timeStr=`${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}${String(now.getSeconds()).padStart(2,'0')}`;
+                const fileName=`${name}_${dateStr}_${timeStr}.png`;
+                const record={id:Date.now(),name,time:now.toLocaleTimeString(),img:dataUrl,fileHandle:null};
+                state.history.unshift(record); renderHistory();
+                const blob=await(await fetch(dataUrl)).blob();
+                if('showDirectoryPicker' in window){
+                    if(!state.directoryHandle){state.directoryHandle=await window.showDirectoryPicker({mode:'readwrite'});await saveHandle(state.directoryHandle);updateFolderUI(state.directoryHandle.name);}
+                    if(!await verifyPermission(state.directoryHandle,true)) throw new Error('NotAllowedError');
+                    const fh=await state.directoryHandle.getFileHandle(fileName,{create:true}), w=await fh.createWritable();
+                    await w.write(blob); await w.close(); record.fileHandle=fh; alert(`${fileName} 저장 완료!`);
+                } else { const a=document.createElement('a'); a.download=fileName; a.href=dataUrl; a.click(); }
+            } catch(e){
+                if(e.name==='AbortError'||e.name==='NotAllowedError'||e.message==='NotAllowedError') alert('저장 권한이 필요합니다. 팝업에서 [허용]을 선택해 주세요.');
+                else alert("이미지 생성 중 오류가 발생했습니다.");
+            } finally { window.scrollTo(0,originalScroll); }
+        }
+
+        window.openHistoryItem = async function(id) {
+            const record=state.history.find(h=>h.id===id); if(!record) return;
+            openImageViewer(record.img, record.name, record.time);
+        };
+
+        window.openHistoryItemExternal = async function(id) {
+            const record=state.history.find(h=>h.id===id); if(!record) return;
+            if(record.fileHandle){
+                try{
+                    const file=await record.fileHandle.getFile();
+                    const url=URL.createObjectURL(file);
+                    const a=document.createElement('a');
+                    a.href=url; a.download=file.name;
+                    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                    setTimeout(()=>URL.revokeObjectURL(url),5000);
+                    return;
+                } catch(e){console.warn('파일 핸들 접근 실패',e);}
+            }
+            // fileHandle 없으면 base64에서 다운로드
+            const a=document.createElement('a');
+            a.href=record.img;
+            a.download=`${record.name}_${record.time.replace(/[: ]/g,'')}.png`;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        };
+
+        function openImageViewer(src, name, time) {
+            const safeName = name.replace(/\\/g,'\\\\').replace(/`/g,"'").replace(/"/g,'&quot;');
+            const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${safeName}</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#111;overflow:hidden;width:100vw;height:100vh;user-select:none;}
+#wrap{width:100vw;height:100vh;display:flex;align-items:center;justify-content:center;}
+img{max-width:100%;max-height:100vh;object-fit:contain;transform-origin:center;pointer-events:none;display:block;}
+#info{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.55);color:#fff;font-size:12px;font-family:sans-serif;padding:6px 16px;border-radius:20px;pointer-events:none;white-space:nowrap;}
+#breset{position:fixed;top:16px;right:16px;background:rgba(255,255,255,0.12);color:#fff;border:none;border-radius:12px;padding:8px 16px;font-size:12px;font-family:sans-serif;cursor:pointer;}
+#breset:hover{background:rgba(255,255,255,0.25);}
+</style></head><body>
+<div id="wrap"><img id="photo" src="${src}"></div>
+<div id="info">클릭: 확대(+10%) &nbsp;|&nbsp; 우클릭: 축소(-10%) &nbsp;|&nbsp; 더블클릭: 초기화</div>
+<button id="breset">초기화 (100%)</button>
+<script>
+(function(){
+  var sc=1,tx=0,ty=0,down=false,moved=false,sx=0,sy=0,stx=0,sty=0,lastUp=0;
+  var img=document.getElementById('photo');
+  var wrap=document.getElementById('wrap');
+  var btn=document.getElementById('breset');
+  function apply(){
+    img.style.transform='translate('+tx+'px,'+ty+'px) scale('+sc+')';
+    wrap.style.cursor=down?'grabbing':'grab';
+    btn.textContent='초기화 ('+Math.round(sc*100)+'%)';
+  }
+  wrap.onmousedown=function(e){
+    if(e.button!==0)return;
+    down=true;moved=false;sx=e.clientX;sy=e.clientY;stx=tx;sty=ty;
+    wrap.style.cursor='grabbing';e.preventDefault();
+  };
+  document.onmousemove=function(e){
+    if(!down)return;
+    var dx=e.clientX-sx,dy=e.clientY-sy;
+    if(Math.abs(dx)>4||Math.abs(dy)>4)moved=true;
+    if(moved){tx=stx+dx;ty=sty+dy;apply();}
+  };
+  document.onmouseup=function(e){
+    if(!down)return;
+    down=false;
+    if(!moved){
+      var now=Date.now();
+      if(now-lastUp<350){tx=0;ty=0;sc=1;}
+      else{sc=Math.min(Math.round((sc+0.1)*10)/10,10);}
+      lastUp=now;
+    }
+    apply();
+  };
+  wrap.oncontextmenu=function(e){e.preventDefault();sc=Math.max(Math.round((sc-0.1)*10)/10,0.1);apply();};
+  btn.onclick=function(){tx=0;ty=0;sc=1;apply();};
+  apply();
+})();
+<\/script></body></html>`;
+            const blob=new Blob([html],{type:'text/html'});
+            const url=URL.createObjectURL(blob);
+            window.open(url,'_blank');
+            setTimeout(()=>URL.revokeObjectURL(url),10000);
+        }
+
+        let historyClickTimer = null;
+        window.historyClickHandler = function(e, id) {
+            clearTimeout(historyClickTimer);
+            historyClickTimer = setTimeout(() => openHistoryItem(id), 250);
+        };
+        window.historyDblClickHandler = function(e, id) {
+            clearTimeout(historyClickTimer);
+            openHistoryItemExternal(id);
+        };
+
+        function renderHistory() {
+            const container=document.getElementById('history-container');
+            if(state.history.length===0){container.innerHTML='<div class="text-[10px] text-slate-300 italic">기록이 없습니다.</div>';return;}
+            container.innerHTML=state.history.map(h=>`
+                <div class="history-item" onclick="historyClickHandler(event,${h.id})" ondblclick="historyDblClickHandler(event,${h.id})" title="클릭: 내부 뷰어 | 더블클릭: 기본 이미지 뷰어(꿀뷰 등)로 열기">
+                    <img src="${h.img}" class="w-full aspect-[3/4] object-cover rounded-lg mb-1">
+                    <div class="text-[9px] font-bold text-slate-700 truncate">${h.name}</div>
+                    <div class="text-[8px] text-slate-400">${h.time}</div>
+                </div>`).join('');
+        }
+
+        async function resetFolderSession() {
+            state.directoryHandle=null; updateFolderUI(null);
+            try{const db=await getDB();db.transaction(STORE_NAME,'readwrite').objectStore(STORE_NAME).delete(KEY_NAME);}catch(e){}
+            alert('저장 폴더 연결이 해제되었습니다.');
+        }
+        async function requestFolderPermission() {
+            try{state.directoryHandle=await window.showDirectoryPicker({mode:'readwrite'});await saveHandle(state.directoryHandle);updateFolderUI(state.directoryHandle.name);}
+            catch(err){console.error("폴더 선택 취소 또는 오류",err);}
+        }
+
+        function renderSlotToCanvas(slotIndex) {
+            return new Promise(resolve=>{
+                const photo=state.photos[`slot-${slotIndex}`]; if(!photo?.hasData){resolve(null);return;}
+                const img=new Image();
+                img.onload=()=>{
+                    const cw=450,ch=600,canvas=document.createElement('canvas');
+                    canvas.width=cw;canvas.height=ch;
+                    const ctx=canvas.getContext('2d');
+                    ctx.fillStyle='#f1f3f0';ctx.fillRect(0,0,cw,ch);
+                    const container=document.querySelector(`#img-${slotIndex}`)?.parentElement;
+                    const containerW=container?container.offsetWidth:cw;
+                    const scaleRatio=cw/containerW;
+                    const imgRatio=img.naturalWidth/img.naturalHeight, canvasRatio=cw/ch;
+                    let drawW,drawH;
+                    if(imgRatio>canvasRatio){drawW=cw;drawH=cw/imgRatio;}else{drawH=ch;drawW=ch*imgRatio;}
+                    ctx.save();
+                    ctx.translate(cw/2+photo.x*scaleRatio,ch/2+photo.y*scaleRatio);
+                    ctx.rotate(photo.rotate*Math.PI/180);ctx.scale(photo.zoom,photo.zoom);
+                    ctx.drawImage(img,-drawW/2,-drawH/2,drawW,drawH);ctx.restore();
+                    if(state.gridOn){
+                        ctx.strokeStyle='rgba(255,0,0,0.45)';ctx.lineWidth=1;
+                        for(let v=1;v<=5;v++){const x=(cw/6)*v;ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,ch);ctx.stroke();}
+                        for(let h=1;h<=7;h++){const y=(ch/8)*h;ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(cw,y);ctx.stroke();}
+                    }
+                    resolve(canvas.toDataURL('image/png'));
+                };
+                img.src=photo.src;
+            });
+        }
+
+        async function printPatientReport() {
+            const name=document.getElementById('patient-name').value||'소중한 환자';
+            const memo=document.getElementById('treatment-memo').value;
+            const focusAreas=document.getElementById('focus-areas').value.trim();
+            const gender=state.gender, age=document.getElementById('patient-age').value.trim();
+            const patientInfoStr=[gender?gender+'성':'',age?age+'세':''].filter(Boolean).join(' / ');
+            const now=new Date();
+            const dateFormatted=`${now.getFullYear()}년 ${now.getMonth()+1}월 ${now.getDate()}일`;
+            let sections=[];
+            if(memo){
+                const lines=memo.split('\n'); let cur=null;
+                for(const line of lines){
+                    const t=line.trim(); if(!t) continue;
+                    const nm=t.match(/^(\d+)\.\s*\[(.+?)\]/), hm=t.match(/^\[(.+?)\]/);
+                    if(nm){if(cur)sections.push(cur);cur={title:nm[2],content:t.replace(/^\d+\.\s*\[.+?\]\s*:?\s*/,'')};}
+                    else if(hm&&!cur){if(cur)sections.push(cur);cur={title:hm[1],content:t.replace(/^\[.+?\]\s*:?\s*/,'')};}
+                    else if(cur){cur.content+='\n'+t;}
+                    else{cur={title:'',content:t};}
+                }
+                if(cur)sections.push(cur);
+            }
+            const sectionIcons=['🌿','✨','📊','💚','🌸','🍃'];
+            const encouragements=['꾸준한 치료가 가장 좋은 결과를 만듭니다.','오늘의 작은 변화가 내일의 큰 자신감이 됩니다.','건강한 피부는 지속적인 관리에서 시작됩니다.','당신의 피부는 매일 조금씩 좋아지고 있습니다.'];
+            const randomEncouragement=encouragements[Math.floor(Math.random()*encouragements.length)];
+            let sectionsHtml='';
+            if(sections.length>0){
+                sectionsHtml=sections.map((s,i)=>{
+                    const icon=sectionIcons[i%sectionIcons.length];
+                    const contentHtml=s.content.split('\n').filter(l=>l.trim()).map(l=>{
+                        let c=l.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+                        c=c.replace(/\*\*(.+?)\*\*/g,'<strong style="color:#dc2626;font-weight:700;background:linear-gradient(transparent 60%,#fef2f2 60%);padding:0 2px;">$1</strong>');
+                        return c.startsWith('-')||c.startsWith('•')?`<div style="padding-left:14px;margin:4px 0;color:#475569;line-height:1.7;position:relative;"><span style="position:absolute;left:0;color:#29b473;font-weight:bold;">•</span>${c.replace(/^[-•]\s*/,'')}</div>`:`<div style="margin:4px 0;color:#475569;line-height:1.7;">${c}</div>`;
+                    }).join('');
+                    const bc=['#29b473','#f59e0b','#3b82f6','#ec4899','#8b5cf6','#06b6d4'][i%6];
+                    return `<div style="background:#fff;border-radius:16px;padding:20px 24px;margin-bottom:14px;border-left:4px solid ${bc};box-shadow:0 2px 8px rgba(0,0,0,0.03);"><div style="font-weight:800;font-size:15px;color:#1e293b;margin-bottom:10px;">${s.title?icon+' '+s.title:icon+' 분석 내용'}</div><div style="font-size:13px;line-height:1.8;">${contentHtml}</div></div>`;
+                }).join('');
+            } else if(memo){
+                sectionsHtml=`<div style="background:#fff;border-radius:16px;padding:20px 24px;border-left:4px solid #29b473;box-shadow:0 2px 8px rgba(0,0,0,0.03);"><div style="font-size:13px;line-height:1.8;color:#475569;white-space:pre-wrap;">${formatMemoHtml(memo)}</div></div>`;
+            }
+            const photoItems=[];
+            for(let pi=1;pi<=state.count;pi++){
+                const photo=state.photos[`slot-${pi}`];
+                if(photo?.hasData){
+                    const labels=["BEFORE","PROGRESS 1","PROGRESS 2","AFTER"], colors=["#94a3b8","#f59e0b","#3b82f6","#29b473"];
+                    const label=pi===1?labels[0]:pi===state.count?labels[3]:labels[pi-1]||'PROGRESS';
+                    const color=pi===1?colors[0]:pi===state.count?colors[3]:colors[pi-1]||'#3b82f6';
+                    const rendered=await renderSlotToCanvas(pi);
+                    if(rendered) photoItems.push(`<div style="flex:1;text-align:center;"><div style="font-size:11px;font-weight:700;color:${color};margin-bottom:8px;letter-spacing:0.1em;">${label}</div><img src="${rendered}" style="width:100%;border-radius:12px;border:1px solid #e2e8f0;"></div>`);
+                }
+            }
+            const photosHtml=photoItems.length>0?`<div style="display:flex;gap:12px;margin-bottom:28px;align-items:flex-start;">${photoItems.join('<div style="display:flex;align-items:center;font-size:18px;color:#29b473;font-weight:900;padding-top:120px;">→</div>')}</div>`:''
+            const pw=window.open('','_blank');
+            pw.document.write(`<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>${name}님 치료 경과 리포트</title>
+<style>@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap');*{margin:0;padding:0;box-sizing:border-box;}body{font-family:'Noto Sans KR',sans-serif;background:#fff;color:#334155;}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}.no-print{display:none!important;}@page{margin:12mm 15mm;size:A4;}}</style></head><body>
+<div style="max-width:700px;margin:0 auto;padding:40px 20px;">
+<div style="text-align:center;margin-bottom:12px;"><div style="font-weight:900;font-size:28px;color:#333132;letter-spacing:-0.03em;">빼빼<span style="color:#29b473;">한의원</span></div><div style="font-size:12px;color:#94a3b8;margin-top:2px;letter-spacing:0.15em;">다이어트 스킨 클리닉</div></div>
+<div style="width:60px;height:3px;background:linear-gradient(90deg,#29b473,#22c55e);margin:20px auto 24px auto;border-radius:2px;"></div>
+<div style="text-align:center;margin-bottom:32px;"><div style="font-size:22px;font-weight:900;color:#1e293b;margin-bottom:6px;">피부 치료 경과 리포트</div><div style="font-size:13px;color:#64748b;"><span style="font-weight:700;color:#29b473;">${name}</span>님${patientInfoStr?' ('+patientInfoStr+')':''} &nbsp;|&nbsp; ${dateFormatted}</div></div>
+<div style="background:linear-gradient(135deg,#effaf4,#f0fdf4);border-radius:16px;padding:18px 24px;margin-bottom:28px;text-align:center;"><div style="font-size:13px;color:#15803d;font-weight:500;line-height:1.6;">💚 <strong>${name}</strong>님, 치료에 함께해 주셔서 감사합니다.<br>오늘의 분석 결과를 바탕으로 맞춤 관리 방향을 안내드립니다.</div></div>
+${photosHtml}
+${focusAreas?`<div style="margin-bottom:20px;display:flex;flex-wrap:wrap;gap:8px;justify-content:center;"><span style="font-size:10px;font-weight:700;color:#94a3b8;align-self:center;margin-right:4px;">비교 포인트</span>${focusAreas.split(/[,，\s]+/).filter(a=>a).map(a=>`<span style="background:#effaf4;color:#15803d;font-size:12px;font-weight:700;padding:6px 14px;border-radius:20px;border:1px solid #bbf7d0;">${a}</span>`).join('')}</div>`:''}
+<div style="margin-bottom:28px;"><div style="font-size:11px;font-weight:800;color:#94a3b8;letter-spacing:0.2em;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid #f1f5f9;">AI 정밀 분석 결과</div>${sectionsHtml||'<div style="color:#94a3b8;font-size:13px;">분석 내용이 없습니다.</div>'}</div>
+<div style="background:linear-gradient(135deg,#fffbeb,#fef3c7);border-radius:16px;padding:20px 24px;margin-bottom:28px;text-align:center;"><div style="font-size:20px;margin-bottom:6px;">🌟</div><div style="font-size:14px;font-weight:700;color:#92400e;line-height:1.6;">${randomEncouragement}</div><div style="font-size:11px;color:#b45309;margin-top:4px;">빼빼한의원이 끝까지 함께하겠습니다.</div></div>
+<div style="border-top:2px solid #f1f5f9;padding-top:20px;display:flex;justify-content:space-between;align-items:flex-end;"><div><div style="font-size:10px;color:#94a3b8;margin-bottom:4px;">다음 내원 예정일</div><div style="font-size:13px;color:#64748b;font-weight:500;">____년 ____월 ____일</div></div><div style="text-align:right;"><div style="font-size:10px;color:#94a3b8;margin-bottom:4px;">담당</div><div style="font-size:13px;color:#64748b;font-weight:500;">빼빼한의원 원장 박진영</div></div></div>
+<div style="text-align:center;margin-top:32px;padding-top:16px;border-top:1px solid #f1f5f9;"><div style="font-size:9px;color:#cbd5e1;letter-spacing:0.1em;">본 리포트는 AI 보조 분석 결과이며, 의료 진단을 대체하지 않습니다.</div><div style="font-size:9px;color:#cbd5e1;margin-top:2px;">ⓒ 빼빼한의원 Skin Analysis System v3.5</div></div>
+</div>
+<div class="no-print" style="position:fixed;bottom:24px;right:24px;display:flex;gap:10px;">
+<button onclick="window.print()" style="background:linear-gradient(135deg,#29b473,#22c55e);color:white;border:none;padding:14px 32px;border-radius:50px;font-family:'Noto Sans KR';font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 6px 20px rgba(41,180,115,0.3);">🖨️ 프린트</button>
+<button onclick="window.close()" style="background:#f1f5f9;color:#64748b;border:none;padding:14px 24px;border-radius:50px;font-family:'Noto Sans KR';font-size:14px;font-weight:600;cursor:pointer;">닫기</button>
+</div></body></html>`);
+            pw.document.close();
+        }
+
+        window.onload = async () => {
+            changeLayout(2);
+            const memo=document.getElementById('treatment-memo');
+            if(memo){memo.addEventListener('input',autoResizeMemo);memo.addEventListener('blur',switchToView);}
+            const savedHandle=await loadHandle();
+            if(savedHandle){state.directoryHandle=savedHandle;updateFolderUI(savedHandle.name);verifyPermission(state.directoryHandle,false);}
+        };
+    </script>
+    <div style="position:fixed;bottom:18px;right:22px;z-index:9999;pointer-events:none;">
+        <span style="font-family:'Dancing Script',cursive;font-size:1.4rem;font-weight:600;color:#c0c0c0;opacity:0.55;letter-spacing:0.04em;user-select:none;">j.h.Ahn</span>
+    </div>
+</body>
+</html>
